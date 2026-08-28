@@ -1,0 +1,51 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Outer Golden Accent Circle -->
+    <path
+        android:pathData="M54,26 A28,28 0 1,0 54,82 A28,28 0 1,0 54,26 Z"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FF8C00"
+        android:fillColor="#00000000" />
+
+    <!-- Waffle Grid in Center -->
+    <!-- Waffle Rounded Box -->
+    <path
+        android:pathData="M38,38 h32 a4,4 0 0 1 4,4 v28 a4,4 0 0 1 -4,4 h-32 a4,4 0 0 1 -4,-4 v-28 a4,4 0 0 1 4,-4 z"
+        android:fillColor="#FFB703" />
+
+    <!-- Waffle Indents -->
+    <path
+        android:pathData="M40,42 h10 v10 h-10 z M58,42 h10 v10 h-10 z M40,56 h10 v10 h-10 z M58,56 h10 v10 h-10 z"
+        android:fillColor="#E07A5F" />
+
+    <!-- Chocolate Drizzle / Syrup on top -->
+    <path
+        android:pathData="M48,34 Q54,44 60,34 Q66,42 70,36"
+        android:strokeWidth="3.5"
+        android:strokeColor="#4A2810"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- 100% Pure Veg Green Dot Indicator in top right of badge -->
+    <path
+        android:pathData="M72,30 h10 v10 h-10 z"
+        android:strokeWidth="1.5"
+        android:strokeColor="#2A9D8F"
+        android:fillColor="#1E1E1E" />
+    <path
+        android:pathData="M77,33 A2,2 0 1,0 77,37 A2,2 0 1,0 77,33 Z"
+        android:fillColor="#2A9D8F" />
+
+    <!-- Coffee Steam Curve on left -->
+    <path
+        android:pathData="M32,48 Q30,42 33,36"
+        android:strokeWidth="2"
+        android:strokeColor="#FFB703"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>

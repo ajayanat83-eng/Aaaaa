@@ -1,0 +1,6 @@
+{
+  "name": "The Janakpur Waffle & Cafe",
+  "description": "Complete cafe ordering, QR table ordering, POS billing, KOT kitchen display, Bluetooth thermal printing, and management ecosystem for The Janakpur Waffle & Cafe.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
