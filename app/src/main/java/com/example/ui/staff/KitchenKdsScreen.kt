@@ -16,14 +16,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CafeRepository
 import com.example.model.KOT
 import com.example.model.KitchenStatus
+import com.example.service.PrinterService
 import com.example.ui.components.PureVegBadge
 import com.example.ui.theme.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,7 +36,10 @@ fun KitchenKdsScreen(
     repository: CafeRepository,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val kots by repository.kots.collectAsState()
+    val printerSettings by repository.printerSettings.collectAsState()
     var selectedFilter by remember { mutableStateOf<KitchenStatus?>(null) }
     var printedKotNotification by remember { mutableStateOf("") }
 
@@ -251,6 +257,9 @@ fun KitchenKdsScreen(
                                     onClick = {
                                         repository.printKot(kot)
                                         printedKotNotification = "Reprinted ${kot.kotNumber} ESC/POS to Kitchen!"
+                                        coroutineScope.launch {
+                                            PrinterService.printKotDirectBluetooth(kot, printerSettings, context)
+                                        }
                                     },
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldenAmber),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, GoldenAmber),

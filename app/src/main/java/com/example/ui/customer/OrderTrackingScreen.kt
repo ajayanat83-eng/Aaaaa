@@ -27,12 +27,16 @@ import androidx.compose.ui.window.Dialog
 import com.example.data.CafeRepository
 import com.example.model.Order
 import com.example.model.OrderStatus
+import com.example.service.PrinterService
 import com.example.service.WhatsAppService
 import com.example.ui.components.NprPriceText
 import com.example.ui.components.OrderStatusBadge
 import com.example.ui.components.PaymentStatusBadge
 import com.example.ui.components.PureVegBadge
+import com.example.ui.customer.CustomerFeedbackDialog
 import com.example.ui.theme.*
+import com.example.util.PriceFormatter
+import kotlinx.coroutines.launch
 
 @Composable
 fun OrderTrackingScreen(
@@ -42,14 +46,24 @@ fun OrderTrackingScreen(
     onNavigateToHome: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val orders by repository.orders.collectAsState()
+    val printerSettings by repository.printerSettings.collectAsState()
     var selectedOrder by remember(targetOrderId, orders) {
         mutableStateOf(orders.find { it.orderId == targetOrderId } ?: orders.firstOrNull())
     }
     var showReceiptDialog by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
+
+    if (showFeedbackDialog) {
+        CustomerFeedbackDialog(
+            repository = repository,
+            onDismiss = { showFeedbackDialog = false }
+        )
+    }
 
     if (showReceiptDialog && selectedOrder != null) {
-        val receiptText = remember(selectedOrder) { repository.printBill(selectedOrder!!) }
+        val receiptText = remember(selectedOrder, printerSettings) { PrinterService.generateBillReceipt(selectedOrder!!, printerSettings) }
         Dialog(onDismissRequest = { showReceiptDialog = false }) {
             Surface(
                 modifier = Modifier
@@ -95,6 +109,9 @@ fun OrderTrackingScreen(
                     Button(
                         onClick = {
                             repository.printBill(selectedOrder!!)
+                            coroutineScope.launch {
+                                PrinterService.printBillDirectBluetooth(selectedOrder!!, printerSettings, context)
+                            }
                             showReceiptDialog = false
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -103,7 +120,7 @@ fun OrderTrackingScreen(
                     ) {
                         Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Print ESC/POS Bill Receipt", fontWeight = FontWeight.Bold)
+                        Text("Print Bluetooth ESC/POS Receipt", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -196,7 +213,7 @@ fun OrderTrackingScreen(
                                                 color = TextSecondary,
                                                 fontSize = 12.sp
                                             )
-                                            Text("NPR ${item.totalPrice.toInt()}", color = TextPrimary, fontSize = 12.sp)
+                                            Text(PriceFormatter.formatNpr(item.totalPrice), color = TextPrimary, fontSize = 12.sp)
                                         }
                                     }
                                 }
@@ -216,6 +233,23 @@ fun OrderTrackingScreen(
                                 }
 
                                 Spacer(modifier = Modifier.height(4.dp))
+
+                                // Feedback trigger button
+                                OutlinedButton(
+                                    onClick = { showFeedbackDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GoldenAmber),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, GoldenAmber.copy(alpha = 0.7f))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(16.dp), tint = GoldenAmber)
+                                        Text("Rate Dining Experience & Food", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
 
                                 // Actions: WhatsApp and Print Receipt
                                 Row(

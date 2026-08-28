@@ -21,12 +21,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CafeRepository
+import com.example.data.FirestoreMenuRepository
 import com.example.model.Category
 import com.example.model.Product
+import com.example.ui.components.CategorySkeletonRow
+import com.example.ui.components.MenuSkeletonLoadingGrid
 import com.example.ui.components.NprPriceText
 import com.example.ui.components.ProductBadgeTag
 import com.example.ui.components.PureVegBadge
 import com.example.ui.theme.*
+import com.example.util.PriceFormatter
 
 @Composable
 fun MenuScreen(
@@ -38,6 +42,7 @@ fun MenuScreen(
     val products by repository.products.collectAsState()
     val categories by repository.categories.collectAsState()
     val cartItems by repository.cartItems.collectAsState()
+    val isFirestoreLoading by FirestoreMenuRepository.instance.isLoading.collectAsState()
 
     var selectedCategoryId by remember { mutableStateOf<String?>(initialCategoryId) }
     var searchQuery by remember { mutableStateOf("") }
@@ -128,34 +133,38 @@ fun MenuScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // Category Chips Filter
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item {
-                        val isAllSelected = selectedCategoryId == null
-                        FilterChip(
-                            selected = isAllSelected,
-                            onClick = { selectedCategoryId = null },
-                            label = { Text("All Items (${products.size})", fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = WaffleOrange,
-                                selectedLabelColor = Color.Black,
-                                containerColor = DarkSurfaceVariant,
-                                labelColor = TextSecondary
+                if (categories.isEmpty() || isFirestoreLoading) {
+                    CategorySkeletonRow()
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item {
+                            val isAllSelected = selectedCategoryId == null
+                            FilterChip(
+                                selected = isAllSelected,
+                                onClick = { selectedCategoryId = null },
+                                label = { Text("All Items (${products.size})", fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = WaffleOrange,
+                                    selectedLabelColor = Color.Black,
+                                    containerColor = DarkSurfaceVariant,
+                                    labelColor = TextSecondary
+                                )
                             )
-                        )
-                    }
-                    items(categories) { category ->
-                        val isSelected = selectedCategoryId == category.id
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { selectedCategoryId = category.id },
-                            label = { Text("${category.iconEmoji} ${category.name}", fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = WaffleOrange,
-                                selectedLabelColor = Color.Black,
-                                containerColor = DarkSurfaceVariant,
-                                labelColor = TextSecondary
+                        }
+                        items(categories) { category ->
+                            val isSelected = selectedCategoryId == category.id
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedCategoryId = category.id },
+                                label = { Text("${category.iconEmoji} ${category.name}", fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = WaffleOrange,
+                                    selectedLabelColor = Color.Black,
+                                    containerColor = DarkSurfaceVariant,
+                                    labelColor = TextSecondary
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -170,37 +179,48 @@ fun MenuScreen(
                 ) {
                     Icon(Icons.Default.ShoppingCart, contentDescription = "Cart")
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Checkout (NPR ${cartItems.sumOf { it.totalPrice }.toInt()})", fontWeight = FontWeight.Bold)
+                    Text("Checkout (${PriceFormatter.formatNpr(cartItems.sumOf { it.totalPrice })})", fontWeight = FontWeight.Bold)
                 }
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(filteredProducts) { product ->
-                MenuProductListItem(
-                    product = product,
-                    onCustomize = { selectedProductForCustomization = product }
-                )
+        if (products.isEmpty() && isFirestoreLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
+            ) {
+                MenuSkeletonLoadingGrid()
             }
-            if (filteredProducts.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🔍", fontSize = 36.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("No items found", color = TextSecondary, fontSize = 14.sp)
-                            Text("Try searching for something else", color = TextMuted, fontSize = 12.sp)
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredProducts) { product ->
+                    MenuProductListItem(
+                        product = product,
+                        onCustomize = { selectedProductForCustomization = product }
+                    )
+                }
+                if (filteredProducts.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🔍", fontSize = 36.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("No items found", color = TextSecondary, fontSize = 14.sp)
+                                Text("Try searching for something else", color = TextMuted, fontSize = 12.sp)
+                            }
                         }
                     }
                 }

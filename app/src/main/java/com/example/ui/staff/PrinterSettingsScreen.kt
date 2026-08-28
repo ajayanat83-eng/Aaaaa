@@ -1,11 +1,10 @@
 package com.example.ui.staff
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -17,30 +16,48 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CafeRepository
 import com.example.model.PaperWidth
-import com.example.model.PrinterSettings
+import com.example.service.BluetoothThermalPrinterService
+import com.example.service.PrinterService
+import com.example.service.PrinterStatus
 import com.example.ui.theme.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun PrinterSettingsScreen(
     repository: CafeRepository,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     val printerSettings by repository.printerSettings.collectAsState()
     val printLogs by repository.printLogs.collectAsState()
     val orders by repository.orders.collectAsState()
+    val kots by repository.kots.collectAsState()
+
+    val bluetoothPrinterService = remember { BluetoothThermalPrinterService.instance }
+    val printerStatus by bluetoothPrinterService.printerStatus.collectAsState()
+    val pairedDevices by bluetoothPrinterService.pairedDevices.collectAsState()
 
     var deviceName by remember { mutableStateOf(printerSettings.printerName) }
+    var macAddress by remember { mutableStateOf(printerSettings.macAddress) }
     var paperWidth by remember { mutableStateOf(printerSettings.paperWidth) }
     var autoPrint by remember { mutableStateOf(printerSettings.autoPrint) }
     var kotPrint by remember { mutableStateOf(printerSettings.kotPrint) }
     var billPrint by remember { mutableStateOf(printerSettings.billPrint) }
     var testPrintOutput by remember { mutableStateOf("") }
+    var isPrintingBt by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        bluetoothPrinterService.refreshPairedDevices(context)
+    }
 
     Scaffold(
         containerColor = DarkBackground,
@@ -58,7 +75,7 @@ fun PrinterSettingsScreen(
                 }
                 Column {
                     Text("🖨️ Bluetooth Thermal Printer Manager", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("ESC/POS 58mm / 80mm Setup", color = GoldenAmber, fontSize = 11.sp)
+                    Text("ESC/POS 58mm / 80mm Setup & Live Testing", color = GoldenAmber, fontSize = 11.sp)
                 }
             }
         }
@@ -71,6 +88,71 @@ fun PrinterSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Bluetooth Status Banner
+            when (val st = printerStatus) {
+                is PrinterStatus.Connecting -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF192A3D))
+                            .border(1.dp, InfoBlue, RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = InfoBlue)
+                            Text("Connecting to Bluetooth Printer (${st.deviceName})...", color = InfoBlue, fontSize = 12.sp)
+                        }
+                    }
+                }
+                is PrinterStatus.Printing -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF382305))
+                            .border(1.dp, GoldenAmber, RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = GoldenAmber)
+                            Text("Printing ESC/POS stream: ${st.message}", color = GoldenAmber, fontSize = 12.sp)
+                        }
+                    }
+                }
+                is PrinterStatus.Success -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0F3D24))
+                            .border(1.dp, SuccessGreen, RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(18.dp))
+                            Text(st.message, color = SuccessGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                is PrinterStatus.Error -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF3B1115))
+                            .border(1.dp, ErrorRed, RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(18.dp))
+                            Text(st.errorMessage, color = ErrorRed, fontSize = 12.sp)
+                        }
+                    }
+                }
+                PrinterStatus.Idle -> {}
+            }
+
             // ==================== 1. DEVICE CONFIGURATION ====================
             Box(
                 modifier = Modifier
@@ -81,7 +163,58 @@ fun PrinterSettingsScreen(
                     .padding(14.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Bluetooth Printer Pairing", color = GoldenAmber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Paired Bluetooth Thermal Printers", color = GoldenAmber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        IconButton(
+                            onClick = {
+                                bluetoothPrinterService.refreshPairedDevices(context)
+                                Toast.makeText(context, "Scanning paired devices...", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(30.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = GoldenAmber)
+                        }
+                    }
+
+                    if (pairedDevices.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            pairedDevices.forEach { dev ->
+                                val isSelected = macAddress == dev.address || deviceName == dev.name
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) Color(0xFF381E04) else DarkSurfaceVariant)
+                                        .border(1.dp, if (isSelected) GoldenAmber else CardBorder, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            deviceName = dev.name
+                                            macAddress = dev.address
+                                            repository.updatePrinterSettings(
+                                                printerSettings.copy(
+                                                    printerName = dev.name,
+                                                    macAddress = dev.address
+                                                )
+                                            )
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(dev.name, color = if (isSelected) GoldenAmber else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text(dev.address, color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                    }
+                                    if (isSelected) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = GoldenAmber, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     OutlinedTextField(
                         value = deviceName,
@@ -89,7 +222,25 @@ fun PrinterSettingsScreen(
                             deviceName = it
                             repository.updatePrinterSettings(printerSettings.copy(printerName = it))
                         },
-                        label = { Text("Printer Bluetooth Name / MAC", color = TextSecondary) },
+                        label = { Text("Printer Name", color = TextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = WaffleOrange,
+                            unfocusedBorderColor = CardBorder,
+                            focusedContainerColor = DarkSurfaceVariant,
+                            unfocusedContainerColor = DarkSurfaceVariant
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = macAddress,
+                        onValueChange = {
+                            macAddress = it
+                            repository.updatePrinterSettings(printerSettings.copy(macAddress = it))
+                        },
+                        label = { Text("Bluetooth MAC Address", color = TextSecondary) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = TextPrimary,
@@ -200,21 +351,56 @@ fun PrinterSettingsScreen(
                 }
             }
 
-            // ==================== 3. TEST PRINT ACTION ====================
-            Button(
-                onClick = {
-                    val sampleOrder = orders.firstOrNull()
-                    if (sampleOrder != null) {
-                        testPrintOutput = repository.printBill(sampleOrder)
-                    }
-                },
+            // ==================== 3. LIVE TEST PRINT ACTIONS ====================
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = WaffleOrange, contentColor = Color.Black)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Print Test Bill (ESC/POS)", fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        val sampleOrder = orders.firstOrNull()
+                        if (sampleOrder != null) {
+                            testPrintOutput = repository.printBill(sampleOrder)
+                            coroutineScope.launch {
+                                isPrintingBt = true
+                                PrinterService.printBillDirectBluetooth(sampleOrder, printerSettings, context)
+                                isPrintingBt = false
+                            }
+                        } else {
+                            Toast.makeText(context, "No orders available for test bill", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = WaffleOrange, contentColor = Color.Black)
+                ) {
+                    Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Print Test Bill", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                Button(
+                    onClick = {
+                        val sampleKot = kots.firstOrNull()
+                        if (sampleKot != null) {
+                            testPrintOutput = repository.printKot(sampleKot)
+                            coroutineScope.launch {
+                                isPrintingBt = true
+                                PrinterService.printKotDirectBluetooth(sampleKot, printerSettings, context)
+                                isPrintingBt = false
+                            }
+                        } else {
+                            Toast.makeText(context, "No KOTs available for test print", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldenAmber, contentColor = Color.Black)
+                ) {
+                    Icon(Icons.Default.SoupKitchen, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Print Test KOT", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
             }
 
             // ==================== 4. TEST OUTPUT PREVIEW ====================
@@ -240,7 +426,7 @@ fun PrinterSettingsScreen(
             if (printLogs.isNotEmpty()) {
                 Text("Recent Print History (${printLogs.size})", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    printLogs.take(5).forEach { log ->
+                    printLogs.take(6).forEach { log ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -42,6 +42,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Tables : Screen("tables", "Floor Tables", Icons.Default.TableBar)
     object Kitchen : Screen("kitchen", "Kitchen KDS", Icons.Default.SoupKitchen)
     object Printers : Screen("printers", "Printers", Icons.Default.Print)
+    object TableQr : Screen("table_qr", "Table QR", Icons.Default.QrCode)
     object Admin : Screen("admin", "Admin Control", Icons.Default.AdminPanelSettings)
 }
 
@@ -49,7 +50,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        TjwCafeApplication.initFirebase(applicationContext)
         val repository = CafeRepository.instance
+        com.example.data.FirestoreMenuRepository.instance.initLocalDatabase(applicationContext)
 
         setContent {
             MyApplicationTheme {
@@ -269,7 +272,8 @@ fun MainAppContent(repository: CafeRepository) {
                 composable(Screen.Tables.route) {
                     TableManagementScreen(
                         repository = repository,
-                        onNavigateBack = { navController.navigate(Screen.Home.route) }
+                        onNavigateBack = { navController.navigate(Screen.Home.route) },
+                        onNavigateToTableQr = { navController.navigate(Screen.TableQr.route) }
                     )
                 }
 
@@ -289,7 +293,19 @@ fun MainAppContent(repository: CafeRepository) {
                     )
                 }
 
-                // ==================== 11. ADMIN CONTROL ====================
+                // ==================== 11. TABLE QR GENERATOR ====================
+                composable(Screen.TableQr.route) {
+                    TableQrManagerScreen(
+                        repository = repository,
+                        onNavigateBack = { navController.popBackStack() },
+                        onSimulateScanToOrder = { table ->
+                            // Open cart/checkout workflow with table pre-filled
+                            navController.navigate(Screen.Cart.route)
+                        }
+                    )
+                }
+
+                // ==================== 12. ADMIN CONTROL ====================
                 composable(Screen.Admin.route) {
                     AdminDashboardScreen(
                         repository = repository,
@@ -297,7 +313,8 @@ fun MainAppContent(repository: CafeRepository) {
                         onNavigateToPos = { navController.navigate(Screen.Pos.route) },
                         onNavigateToTables = { navController.navigate(Screen.Tables.route) },
                         onNavigateToKitchen = { navController.navigate(Screen.Kitchen.route) },
-                        onNavigateToPrinters = { navController.navigate(Screen.Printers.route) }
+                        onNavigateToPrinters = { navController.navigate(Screen.Printers.route) },
+                        onNavigateToTableQr = { navController.navigate(Screen.TableQr.route) }
                     )
                 }
             }

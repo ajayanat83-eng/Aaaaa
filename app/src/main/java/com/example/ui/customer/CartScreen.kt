@@ -24,6 +24,7 @@ import com.example.model.*
 import com.example.ui.components.NprPriceText
 import com.example.ui.components.PureVegBadge
 import com.example.ui.theme.*
+import com.example.util.PriceFormatter
 
 @Composable
 fun CartScreen(
@@ -41,10 +42,12 @@ fun CartScreen(
     ) -> Unit
 ) {
     val cartItems by repository.cartItems.collectAsState()
-    val coupons by repository.coupons.collectAsState()
+    val firestoreRepo = remember { com.example.data.FirestoreMenuRepository.instance }
+    val firestoreCoupons by firestoreRepo.couponsFlow.collectAsState()
     val customerProfile by repository.customerProfile.collectAsState()
     val tables by repository.tables.collectAsState()
     val cafeSettings by repository.cafeSettings.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
     var orderType by remember { mutableStateOf(if (preselectedTable != null) OrderType.DINE_IN else OrderType.DINE_IN) }
     var selectedTableNumber by remember { mutableStateOf(preselectedTable?.tableNumber ?: "TJW-TABLE-01") }
@@ -53,6 +56,7 @@ fun CartScreen(
     var couponInput by remember { mutableStateOf("") }
     var appliedCoupon by remember { mutableStateOf<Coupon?>(null) }
     var couponMessage by remember { mutableStateOf("") }
+    var isCouponValidating by remember { mutableStateOf(false) }
     var isRedeemingLoyalty by remember { mutableStateOf(false) }
 
     val subtotal = cartItems.sumOf { it.totalPrice }
@@ -440,47 +444,151 @@ fun CartScreen(
                             .padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("🏷️ Apply Coupon Code", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
-                                value = couponInput,
-                                onValueChange = { couponInput = it.uppercase() },
-                                placeholder = { Text("e.g. TJW10, WAFFLE50", color = TextMuted, fontSize = 12.sp) },
-                                modifier = Modifier.weight(1f),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = TextPrimary,
-                                    unfocusedTextColor = TextPrimary,
-                                    focusedBorderColor = WaffleOrange,
-                                    unfocusedBorderColor = CardBorder,
-                                    focusedContainerColor = DarkSurfaceVariant,
-                                    unfocusedContainerColor = DarkSurfaceVariant
-                                ),
-                                singleLine = true
-                            )
-                            Button(
-                                onClick = {
-                                    val matched = coupons.find { it.code.equals(couponInput.trim(), ignoreCase = true) && it.isActive }
-                                    if (matched != null) {
-                                        if (subtotal >= matched.minOrderAmount) {
-                                            appliedCoupon = matched
-                                            couponMessage = "Coupon applied! Saved on order."
-                                        } else {
-                                            couponMessage = "Min order amount is NPR ${matched.minOrderAmount.toInt()}"
-                                        }
-                                    } else {
-                                        couponMessage = "Invalid coupon code"
-                                    }
-                                },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = GoldenAmber, contentColor = Color.Black)
+                            Text("🏷️ Apply Coupon Code", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Validated with Cloud Firestore", color = GoldenAmber, fontSize = 10.sp)
+                        }
+
+                        if (appliedCoupon != null) {
+                            // Coupon Applied Card
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF0F3D24))
+                                    .border(1.dp, SuccessGreen, RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Apply", fontWeight = FontWeight.Bold)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(20.dp))
+                                    Column {
+                                        Text(
+                                            text = "${appliedCoupon!!.code} (${if (appliedCoupon!!.discountType == DiscountType.PERCENTAGE) "${appliedCoupon!!.discountValue.toInt()}% Off" else "NPR ${appliedCoupon!!.discountValue.toInt()} Off"})",
+                                            color = SuccessGreen,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Discount: NPR ${couponDiscount.toInt()} saved on order total",
+                                            color = Color(0xFFA5D6A7),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                                IconButton(
+                                    onClick = {
+                                        appliedCoupon = null
+                                        couponMessage = ""
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = ErrorRed, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = couponInput,
+                                    onValueChange = { couponInput = it.uppercase() },
+                                    placeholder = { Text("e.g. TJW10, PUREVEG, WAFFLE50", color = TextMuted, fontSize = 12.sp) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary,
+                                        focusedBorderColor = WaffleOrange,
+                                        unfocusedBorderColor = CardBorder,
+                                        focusedContainerColor = DarkSurfaceVariant,
+                                        unfocusedContainerColor = DarkSurfaceVariant
+                                    ),
+                                    singleLine = true
+                                )
+                                Button(
+                                    onClick = {
+                                        if (couponInput.isBlank()) {
+                                            couponMessage = "Please enter a coupon code"
+                                            return@Button
+                                        }
+                                        coroutineScope.launch {
+                                            isCouponValidating = true
+                                            couponMessage = ""
+                                            val result = firestoreRepo.validateCoupon(couponInput, subtotal)
+                                            isCouponValidating = false
+                                            when (result) {
+                                                is com.example.data.CouponValidationResult.Success -> {
+                                                    appliedCoupon = result.coupon
+                                                    couponMessage = result.message
+                                                }
+                                                is com.example.data.CouponValidationResult.Error -> {
+                                                    appliedCoupon = null
+                                                    couponMessage = result.message
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = !isCouponValidating,
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = GoldenAmber, contentColor = Color.Black)
+                                ) {
+                                    if (isCouponValidating) {
+                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.Black)
+                                    } else {
+                                        Text("Apply", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+
+                            // Quick suggestion chips
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                firestoreCoupons.take(3).forEach { coup ->
+                                    val discountLabel = if (coup.discountType == DiscountType.PERCENTAGE) "${coup.discountValue.toInt()}% Off" else "NPR ${coup.discountValue.toInt()}"
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(DarkSurfaceVariant)
+                                            .border(0.5.dp, CardBorder, RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                couponInput = coup.code
+                                                coroutineScope.launch {
+                                                    isCouponValidating = true
+                                                    couponMessage = ""
+                                                    val result = firestoreRepo.validateCoupon(coup.code, subtotal)
+                                                    isCouponValidating = false
+                                                    when (result) {
+                                                        is com.example.data.CouponValidationResult.Success -> {
+                                                            appliedCoupon = result.coupon
+                                                            couponMessage = result.message
+                                                        }
+                                                        is com.example.data.CouponValidationResult.Error -> {
+                                                            appliedCoupon = null
+                                                            couponMessage = result.message
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("${coup.code} ($discountLabel)", color = GoldenAmber, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
                             }
                         }
+
                         if (couponMessage.isNotBlank()) {
                             Text(
                                 text = couponMessage,
@@ -534,7 +642,7 @@ fun CartScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("Item Total (Subtotal)", color = TextSecondary, fontSize = 13.sp)
-                            Text("NPR ${subtotal.toInt()}", color = TextPrimary, fontSize = 13.sp)
+                            Text(PriceFormatter.formatNpr(subtotal), color = TextPrimary, fontSize = 13.sp)
                         }
                         if (couponDiscount > 0) {
                             Row(
@@ -542,7 +650,7 @@ fun CartScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("Coupon Discount (${appliedCoupon?.code})", color = SuccessGreen, fontSize = 13.sp)
-                                Text("-NPR ${couponDiscount.toInt()}", color = SuccessGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(PriceFormatter.formatDiscount(couponDiscount), color = SuccessGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         if (loyaltyDiscount > 0) {
@@ -551,7 +659,7 @@ fun CartScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("Loyalty Points Redeemed", color = SuccessGreen, fontSize = 13.sp)
-                                Text("-NPR ${loyaltyDiscount.toInt()}", color = SuccessGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(PriceFormatter.formatDiscount(loyaltyDiscount), color = SuccessGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         if (deliveryFee > 0) {
@@ -560,7 +668,7 @@ fun CartScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("Delivery Fee", color = TextSecondary, fontSize = 13.sp)
-                                Text("NPR ${deliveryFee.toInt()}", color = TextPrimary, fontSize = 13.sp)
+                                Text(PriceFormatter.formatNpr(deliveryFee), color = TextPrimary, fontSize = 13.sp)
                             }
                         }
                         Divider(color = CardBorder, thickness = 1.dp)

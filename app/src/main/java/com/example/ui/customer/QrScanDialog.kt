@@ -31,7 +31,8 @@ fun QrScanDialog(
     onDismiss: () -> Unit,
     onTableSelected: (Table) -> Unit
 ) {
-    var scannedCode by remember { mutableStateOf("") }
+    var rawQrInput by remember { mutableStateOf("") }
+    var scanStatusMessage by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -53,7 +54,7 @@ fun QrScanDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "🪑 Dine-In QR Table Scanner",
+                        text = "📷 Scan Dine-In Table QR",
                         color = TextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
@@ -66,7 +67,8 @@ fun QrScanDialog(
                 // Simulated Scanner Viewfinder
                 Box(
                     modifier = Modifier
-                        .size(160.dp)
+                        .fillMaxWidth()
+                        .height(130.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color(0xFF0A0A0A))
                         .border(2.dp, WaffleOrange, RoundedCornerShape(16.dp))
@@ -81,16 +83,58 @@ fun QrScanDialog(
                             Icons.Default.QrCodeScanner,
                             contentDescription = "QR Scanner",
                             tint = GoldenAmber,
-                            modifier = Modifier.size(56.dp)
+                            modifier = Modifier.size(44.dp)
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Point camera at Table QR",
+                            text = "Point camera at Table QR stand to auto pre-fill table ID",
                             color = TextSecondary,
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             textAlign = TextAlign.Center
                         )
                     }
+                }
+
+                // Or manual paste / code input
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = rawQrInput,
+                        onValueChange = { rawQrInput = it },
+                        placeholder = { Text("e.g. tjwcafe://order?tableNumber=TJW-TABLE-04", color = TextMuted, fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = WaffleOrange,
+                            unfocusedBorderColor = CardBorder,
+                            focusedContainerColor = DarkSurfaceVariant,
+                            unfocusedContainerColor = DarkSurfaceVariant
+                        ),
+                        singleLine = true
+                    )
+                    Button(
+                        onClick = {
+                            val parsedTable = parseTableFromQr(rawQrInput, tables)
+                            if (parsedTable != null) {
+                                onTableSelected(parsedTable)
+                                onDismiss()
+                            } else {
+                                scanStatusMessage = "Could not identify table from scanned payload."
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = GoldenAmber, contentColor = Color.Black),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Parse", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (scanStatusMessage.isNotBlank()) {
+                    Text(scanStatusMessage, color = ErrorRed, fontSize = 11.sp)
                 }
 
                 Text(
@@ -105,7 +149,7 @@ fun QrScanDialog(
                     columns = GridCells.Fixed(4),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 180.dp),
+                        .heightIn(max = 160.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -119,7 +163,7 @@ fun QrScanDialog(
                                     onTableSelected(table)
                                     onDismiss()
                                 }
-                                .padding(vertical = 10.dp),
+                                .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -144,3 +188,37 @@ fun QrScanDialog(
         }
     }
 }
+
+private fun parseTableFromQr(payload: String, tables: List<Table>): Table? {
+    val trimmed = payload.trim()
+    // 1. Direct Table Number match (e.g. "TJW-TABLE-03" or "03" or "3")
+    tables.find { it.tableNumber.equals(trimmed, ignoreCase = true) || it.tableId.equals(trimmed, ignoreCase = true) }?.let {
+        return it
+    }
+
+    // 2. Query param in URL/URI (e.g. tjwcafe://order?tableNumber=TJW-TABLE-02 or tableId=tbl_02 or table=2)
+    val regexTableNum = Regex("tableNumber=([a-zA-Z0-9_-]+)", RegexOption.IGNORE_CASE)
+    regexTableNum.find(trimmed)?.groupValues?.get(1)?.let { tableNum ->
+        tables.find { it.tableNumber.equals(tableNum, ignoreCase = true) || it.tableId.equals(tableNum, ignoreCase = true) }?.let {
+            return it
+        }
+    }
+
+    val regexTableId = Regex("tableId=([a-zA-Z0-9_-]+)", RegexOption.IGNORE_CASE)
+    regexTableId.find(trimmed)?.groupValues?.get(1)?.let { id ->
+        tables.find { it.tableId.equals(id, ignoreCase = true) }?.let {
+            return it
+        }
+    }
+
+    val regexTableShort = Regex("table=([0-9]+)", RegexOption.IGNORE_CASE)
+    regexTableShort.find(trimmed)?.groupValues?.get(1)?.let { num ->
+        val formatted = "TJW-TABLE-${num.padStart(2, '0')}"
+        tables.find { it.tableNumber.equals(formatted, ignoreCase = true) }?.let {
+            return it
+        }
+    }
+
+    return null
+}
+

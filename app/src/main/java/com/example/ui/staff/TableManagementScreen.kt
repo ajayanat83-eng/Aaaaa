@@ -32,7 +32,8 @@ import com.example.ui.theme.*
 @Composable
 fun TableManagementScreen(
     repository: CafeRepository,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToTableQr: () -> Unit = {}
 ) {
     val tables by repository.tables.collectAsState()
     var selectedTableForAction by remember { mutableStateOf<Table?>(null) }
@@ -239,8 +240,13 @@ fun TableManagementScreen(
                         Text("${tables.count { it.status == TableStatus.AVAILABLE }} of ${tables.size} Tables Available", color = VegGreen, fontSize = 11.sp)
                     }
                 }
-                IconButton(onClick = { showAddTableDialog = true }) {
-                    Icon(Icons.Default.AddCircle, contentDescription = "Add Table", tint = GoldenAmber)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onNavigateToTableQr) {
+                        Icon(Icons.Default.QrCode, contentDescription = "Generate Table QRs", tint = GoldenAmber)
+                    }
+                    IconButton(onClick = { showAddTableDialog = true }) {
+                        Icon(Icons.Default.AddCircle, contentDescription = "Add Table", tint = WaffleOrange)
+                    }
                 }
             }
         }

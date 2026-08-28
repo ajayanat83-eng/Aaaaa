@@ -21,6 +21,7 @@ object FirestoreConfig {
     const val SETTINGS = "settings"
     const val COUPONS = "coupons"
     const val AUDIT_LOGS = "audit_logs"
+    const val FEEDBACK = "feedback"
 
     // ==================== SUB-COLLECTION PATHS ====================
     const val SUB_COLLECTION_PAYMENTS = "payments"
@@ -75,6 +76,9 @@ object FirestoreConfig {
 
     fun getTablesCollection(db: FirebaseFirestore? = firestore): CollectionReference? =
         db?.collection(TABLES)
+
+    fun getFeedbackCollection(db: FirebaseFirestore? = firestore): CollectionReference? =
+        db?.collection(FEEDBACK)
 
     // ==================== DOCUMENT REFERENCES ====================
 

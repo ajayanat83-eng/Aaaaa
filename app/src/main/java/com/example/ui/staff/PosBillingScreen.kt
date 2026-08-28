@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -26,21 +27,27 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.data.CafeRepository
 import com.example.model.*
+import com.example.service.PrinterService
 import com.example.ui.components.NprPriceText
 import com.example.ui.components.PureVegBadge
 import com.example.ui.components.TableStatusChip
 import com.example.ui.customer.ProductCustomizeDialog
 import com.example.ui.theme.*
+import com.example.util.PriceFormatter
+import kotlinx.coroutines.launch
 
 @Composable
 fun PosBillingScreen(
     repository: CafeRepository,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val products by repository.products.collectAsState()
     val categories by repository.categories.collectAsState()
     val tables by repository.tables.collectAsState()
     val cafeSettings by repository.cafeSettings.collectAsState()
+    val printerSettings by repository.printerSettings.collectAsState()
 
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
@@ -112,6 +119,13 @@ fun PosBillingScreen(
                 posCartItems = emptyList()
                 showSettlementDialog = false
                 successNotification = "Order ${order.humanOrderNumber} created & KOT dispatched!"
+
+                // Bluetooth Thermal Printing
+                coroutineScope.launch {
+                    if (printerSettings.billPrint) {
+                        PrinterService.printBillDirectBluetooth(order, printerSettings, context)
+                    }
+                }
             }
         )
     }

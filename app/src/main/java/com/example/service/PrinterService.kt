@@ -1,9 +1,11 @@
 package com.example.service
 
+import android.content.Context
 import com.example.model.KOT
 import com.example.model.Order
 import com.example.model.PaperWidth
 import com.example.model.PrinterSettings
+import com.example.util.PriceFormatter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -12,6 +14,9 @@ object PrinterService {
 
     private val dateFormatter = SimpleDateFormat("dd/MM/yyyy hh:mm a", Locale.getDefault())
 
+    /**
+     * Generates plain text printable preview string for UI / sharing.
+     */
     fun generateBillReceipt(order: Order, settings: PrinterSettings): String {
         val width = settings.paperWidth.charsPerLine
         val line = "=".repeat(width)
@@ -28,7 +33,7 @@ object PrinterService {
         if (order.tableNumber != null) {
             sb.append(formatRow("Table: ${order.tableNumber}", "Cust: ${order.customerName}", width)).append("\n")
         } else {
-            sb.append(formatRow("Cust: ${order.customerName}", "Ph: ${order.customerPhone}", width)).append("\n")
+            sb.append(formatRow("Cust: ${order.customerName}", "Ph: ${order.customerPhone.ifBlank { "N/A" }}", width)).append("\n")
         }
         sb.append("Date: ${dateFormatter.format(Date(order.createdAt))}\n")
         sb.append(dashLine).append("\n")
@@ -60,30 +65,33 @@ object PrinterService {
         sb.append(dashLine).append("\n")
 
         // Totals
-        sb.append(formatRow("Subtotal:", "NPR ${String.format("%.2f", order.subtotal)}", width)).append("\n")
+        sb.append(formatRow("Subtotal:", PriceFormatter.formatNpr(order.subtotal), width)).append("\n")
         if (order.discount > 0) {
-            sb.append(formatRow("Discount (${order.couponCode ?: "Promo"}):", "-NPR ${String.format("%.2f", order.discount)}", width)).append("\n")
+            sb.append(formatRow("Discount (${order.couponCode ?: "Promo"}):", PriceFormatter.formatDiscount(order.discount), width)).append("\n")
         }
         if (order.tax > 0) {
-            sb.append(formatRow("Tax:", "NPR ${String.format("%.2f", order.tax)}", width)).append("\n")
+            sb.append(formatRow("Tax:", PriceFormatter.formatNpr(order.tax), width)).append("\n")
         }
         if (order.deliveryFee > 0) {
-            sb.append(formatRow("Delivery Fee:", "NPR ${String.format("%.2f", order.deliveryFee)}", width)).append("\n")
+            sb.append(formatRow("Delivery Fee:", PriceFormatter.formatNpr(order.deliveryFee), width)).append("\n")
         }
         sb.append(line).append("\n")
-        sb.append(formatRow("GRAND TOTAL:", "NPR ${String.format("%.2f", order.grandTotal)}", width)).append("\n")
+        sb.append(formatRow("GRAND TOTAL:", PriceFormatter.formatNpr(order.grandTotal), width)).append("\n")
         sb.append(line).append("\n")
 
         sb.append(formatRow("Payment Mode:", order.paymentMethod.label, width)).append("\n")
         sb.append(formatRow("Payment Status:", order.paymentStatus.label, width)).append("\n")
         sb.append(dashLine).append("\n")
-        sb.append(centerText("Thank You! Visit Again!", width)).append("\n")
+        sb.append(centerText("Thank You! Visit Again! 🧇", width)).append("\n")
         sb.append(centerText("For Home Delivery WhatsApp: +977-9706612914", width)).append("\n")
         sb.append("\n\n") // Feed lines
 
         return sb.toString()
     }
 
+    /**
+     * Generates plain text printable preview string for Kitchen KOT.
+     */
     fun generateKotReceipt(kot: KOT, settings: PrinterSettings): String {
         val width = settings.paperWidth.charsPerLine
         val line = "=".repeat(width)
@@ -123,6 +131,20 @@ object PrinterService {
         return sb.toString()
     }
 
+    /**
+     * Direct Bluetooth Thermal Printing using ESC/POS protocol
+     */
+    suspend fun printBillDirectBluetooth(order: Order, settings: PrinterSettings, context: Context): Result<String> {
+        return BluetoothThermalPrinterService.instance.printCustomerReceipt(order, settings, context)
+    }
+
+    /**
+     * Direct Bluetooth Kitchen KOT Printing using ESC/POS protocol
+     */
+    suspend fun printKotDirectBluetooth(kot: KOT, settings: PrinterSettings, context: Context): Result<String> {
+        return BluetoothThermalPrinterService.instance.printKitchenKot(kot, settings, context)
+    }
+
     private fun centerText(text: String, width: Int): String {
         if (text.length >= width) return text.take(width)
         val padding = (width - text.length) / 2
@@ -135,3 +157,4 @@ object PrinterService {
         return left + " ".repeat(totalSpace) + right
     }
 }
+

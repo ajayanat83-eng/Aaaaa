@@ -480,6 +480,13 @@ class CafeRepository private constructor() {
         logAudit("Table", "Merged ${sTable.tableNumber} into ${pTable.tableNumber}")
     }
 
+    fun addTable(table: Table) {
+        val current = _tables.value.toMutableList()
+        current.add(table)
+        _tables.value = current
+        logAudit("Table", "Registered new table ${table.tableNumber} (Capacity ${table.capacity}) with QR Code")
+    }
+
     fun addTable(tableNumber: String, capacity: Int) {
         val newTable = Table(
             tableId = "tbl_${UUID.randomUUID().toString().take(6)}",

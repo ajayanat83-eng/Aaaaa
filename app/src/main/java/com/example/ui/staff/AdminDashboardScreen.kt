@@ -35,7 +35,8 @@ fun AdminDashboardScreen(
     onNavigateToPos: () -> Unit,
     onNavigateToTables: () -> Unit,
     onNavigateToKitchen: () -> Unit,
-    onNavigateToPrinters: () -> Unit
+    onNavigateToPrinters: () -> Unit,
+    onNavigateToTableQr: () -> Unit = {}
 ) {
     val orders by repository.orders.collectAsState()
     val products by repository.products.collectAsState()
@@ -194,6 +195,16 @@ fun AdminDashboardScreen(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Text("🖨️ Printer Setup", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    item {
+                        Button(
+                            onClick = onNavigateToTableQr,
+                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = Color.White),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("📱 Table QR Stands", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

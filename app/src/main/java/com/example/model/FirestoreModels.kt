@@ -226,3 +226,125 @@ data class FirestoreUserProfile(
         }
     }
 }
+
+/**
+ * Firestore Customer Feedback Entity
+ * Stored in the 'feedback' collection for dining & delivery ratings and suggestions.
+ */
+@Serializable
+data class FirestoreFeedback(
+    var feedbackId: String = "",
+    var orderId: String? = null,
+    var orderNumber: String? = null,
+    var customerName: String = "",
+    var customerPhone: String = "",
+    var overallRating: Int = 5,
+    var foodRating: Int = 5,
+    var serviceRating: Int = 5,
+    var ambienceRating: Int = 5,
+    var tags: List<String> = emptyList(),
+    var comment: String = "",
+    var suggestions: String = "",
+    var createdAt: Long = System.currentTimeMillis()
+) {
+    fun toDomain(): CustomerFeedback {
+        return CustomerFeedback(
+            feedbackId = feedbackId,
+            orderId = orderId,
+            orderNumber = orderNumber,
+            customerName = customerName,
+            customerPhone = customerPhone,
+            overallRating = overallRating,
+            foodRating = foodRating,
+            serviceRating = serviceRating,
+            ambienceRating = ambienceRating,
+            tags = tags,
+            comment = comment,
+            suggestions = suggestions,
+            createdAt = createdAt
+        )
+    }
+
+    companion object {
+        fun fromDomain(domain: CustomerFeedback): FirestoreFeedback {
+            return FirestoreFeedback(
+                feedbackId = domain.feedbackId,
+                orderId = domain.orderId,
+                orderNumber = domain.orderNumber,
+                customerName = domain.customerName,
+                customerPhone = domain.customerPhone,
+                overallRating = domain.overallRating,
+                foodRating = domain.foodRating,
+                serviceRating = domain.serviceRating,
+                ambienceRating = domain.ambienceRating,
+                tags = domain.tags,
+                comment = domain.comment,
+                suggestions = domain.suggestions,
+                createdAt = domain.createdAt
+            )
+        }
+    }
+}
+
+/**
+ * Firestore Coupon Entity
+ * Stored in the 'coupons' collection for percentage & flat discount validation.
+ */
+@Serializable
+data class FirestoreCoupon(
+    var code: String = "",
+    var title: String = "",
+    var description: String = "",
+    var discountType: String = "PERCENTAGE", // "PERCENTAGE" or "FIXED"
+    var discountValue: Double = 0.0,
+    var minOrderAmount: Double = 0.0,
+    var maxDiscount: Double = 99999.0,
+    var validFrom: Long = 0L,
+    var validTo: Long = Long.MAX_VALUE,
+    var usageLimit: Int = 1000,
+    var usedCount: Int = 0,
+    var isActive: Boolean = true
+) {
+    fun toDomain(): Coupon {
+        val type = try {
+            DiscountType.valueOf(discountType)
+        } catch (e: Exception) {
+            DiscountType.PERCENTAGE
+        }
+        return Coupon(
+            code = code,
+            title = title,
+            description = description,
+            discountType = type,
+            discountValue = discountValue,
+            minOrderAmount = minOrderAmount,
+            maxDiscount = maxDiscount,
+            validFrom = validFrom,
+            validTo = validTo,
+            usageLimit = usageLimit,
+            usedCount = usedCount,
+            isActive = isActive
+        )
+    }
+
+    companion object {
+        fun fromDomain(domain: Coupon): FirestoreCoupon {
+            return FirestoreCoupon(
+                code = domain.code,
+                title = domain.title,
+                description = domain.description,
+                discountType = domain.discountType.name,
+                discountValue = domain.discountValue,
+                minOrderAmount = domain.minOrderAmount,
+                maxDiscount = domain.maxDiscount,
+                validFrom = domain.validFrom,
+                validTo = domain.validTo,
+                usageLimit = domain.usageLimit,
+                usedCount = domain.usedCount,
+                isActive = domain.isActive
+            )
+        }
+    }
+}
+
+

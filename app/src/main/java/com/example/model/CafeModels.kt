@@ -357,3 +357,21 @@ data class CafeSettings(
         Branch("branch_janakpur_chowk", "TJW Express - Ramanand Chowk", "Ramanand Chowk, Janakpurdham", "+977-9706612915", false)
     )
 )
+
+@Serializable
+data class CustomerFeedback(
+    val feedbackId: String = UUID.randomUUID().toString(),
+    val orderId: String? = null,
+    val orderNumber: String? = null,
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val overallRating: Int = 5, // 1 to 5 stars
+    val foodRating: Int = 5,
+    val serviceRating: Int = 5,
+    val ambienceRating: Int = 5,
+    val tags: List<String> = emptyList(), // e.g. "Delicious Waffles", "Fast Service", "Eggless Quality"
+    val comment: String = "",
+    val suggestions: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+)
+

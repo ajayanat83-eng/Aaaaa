@@ -41,23 +41,21 @@ class FirebaseAuthRepository private constructor() {
     private val tag = "TJW_FirebaseAuth"
     private val scope = CoroutineScope(Dispatchers.IO)
 
-    private val auth: FirebaseAuth? by lazy {
-        try {
+    private val auth: FirebaseAuth?
+        get() = try {
             FirebaseAuth.getInstance()
         } catch (e: Exception) {
-            Log.e(tag, "FirebaseAuth initialization error: ${e.message}")
+            Log.w(tag, "FirebaseAuth initialization fallback: ${e.message}")
             null
         }
-    }
 
-    private val firestore: FirebaseFirestore? by lazy {
-        try {
+    private val firestore: FirebaseFirestore?
+        get() = try {
             FirebaseFirestore.getInstance()
         } catch (e: Exception) {
-            Log.e(tag, "FirebaseFirestore initialization error: ${e.message}")
+            Log.w(tag, "FirebaseFirestore initialization fallback: ${e.message}")
             null
         }
-    }
 
     private val _authState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val authState: StateFlow<AuthUiState> = _authState.asStateFlow()

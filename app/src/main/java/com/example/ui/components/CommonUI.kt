@@ -25,6 +25,7 @@ import com.example.model.OrderStatus
 import com.example.model.PaymentStatus
 import com.example.model.TableStatus
 import com.example.ui.theme.*
+import com.example.util.PriceFormatter
 
 @Composable
 fun PureVegBadge(
@@ -75,7 +76,7 @@ fun NprPriceText(
     fontWeight: FontWeight = FontWeight.Bold
 ) {
     Text(
-        text = "NPR ${amount.toInt()}",
+        text = PriceFormatter.formatNpr(amount),
         color = color,
         fontSize = fontSize,
         fontWeight = fontWeight,

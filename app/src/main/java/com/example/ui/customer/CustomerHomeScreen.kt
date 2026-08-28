@@ -25,12 +25,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CafeRepository
+import com.example.data.FirestoreMenuRepository
 import com.example.model.*
 import com.example.service.WhatsAppService
+import com.example.ui.components.CategorySkeletonRow
+import com.example.ui.components.MenuSkeletonLoadingGrid
 import com.example.ui.components.NprPriceText
 import com.example.ui.components.ProductBadgeTag
+import com.example.ui.components.ProductCardSkeleton
 import com.example.ui.components.PureVegBadge
 import com.example.ui.theme.*
+import com.example.util.PriceFormatter
 
 @Composable
 fun CustomerHomeScreen(
@@ -47,10 +52,12 @@ fun CustomerHomeScreen(
     val cartItems by repository.cartItems.collectAsState()
     val tables by repository.tables.collectAsState()
     val customerProfile by repository.customerProfile.collectAsState()
+    val isFirestoreLoading by FirestoreMenuRepository.instance.isLoading.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedProductForCustomization by remember { mutableStateOf<Product?>(null) }
     var showQrDialog by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
 
     val filteredProducts = remember(searchQuery, products) {
         if (searchQuery.isBlank()) products
@@ -71,6 +78,13 @@ fun CustomerHomeScreen(
 
     val popularItems = remember(products) {
         products.filter { it.isFeatured || it.badge?.equals("Popular", ignoreCase = true) == true || it.badge?.equals("Must Try", ignoreCase = true) == true }
+    }
+
+    if (showFeedbackDialog) {
+        CustomerFeedbackDialog(
+            repository = repository,
+            onDismiss = { showFeedbackDialog = false }
+        )
     }
 
     if (showQrDialog) {
@@ -118,7 +132,7 @@ fun CustomerHomeScreen(
                             Icon(Icons.Default.ShoppingCart, contentDescription = "Cart")
                         }
                         Text(
-                            text = "View Cart (NPR ${cartItems.sumOf { it.totalPrice }.toInt()})",
+                            text = "View Cart (${PriceFormatter.formatNpr(cartItems.sumOf { it.totalPrice })})",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -178,8 +192,18 @@ fun CustomerHomeScreen(
                             }
                         }
 
-                        // Profile & Order History Shortcuts
+                        // Feedback, Orders & Profile Shortcuts
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            IconButton(
+                                onClick = { showFeedbackDialog = true },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF382305))
+                                    .border(1.dp, GoldenAmber.copy(alpha = 0.6f), CircleShape)
+                            ) {
+                                Icon(Icons.Default.Star, contentDescription = "Rate Experience", tint = GoldenAmber, modifier = Modifier.size(20.dp))
+                            }
                             IconButton(
                                 onClick = onNavigateToOrders,
                                 modifier = Modifier
@@ -402,15 +426,19 @@ fun CustomerHomeScreen(
                         )
                     }
 
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(categories) { category ->
-                            CategoryCard(
-                                category = category,
-                                onClick = { onNavigateToMenu(category.id) }
-                            )
+                    if (categories.isEmpty() || isFirestoreLoading) {
+                        CategorySkeletonRow()
+                    } else {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(categories) { category ->
+                                CategoryCard(
+                                    category = category,
+                                    onClick = { onNavigateToMenu(category.id) }
+                                )
+                            }
                         }
                     }
                 }
@@ -502,22 +530,34 @@ fun CustomerHomeScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    filteredProducts.chunked(2).forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            rowItems.forEach { product ->
-                                Box(modifier = Modifier.weight(1f)) {
-                                    ProductGridCard(
-                                        product = product,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        onAddToCart = { selectedProductForCustomization = product }
-                                    )
-                                }
+                    if (products.isEmpty() || isFirestoreLoading) {
+                        repeat(3) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                ProductCardSkeleton(modifier = Modifier.weight(1f))
+                                ProductCardSkeleton(modifier = Modifier.weight(1f))
                             }
-                            if (rowItems.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
+                        }
+                    } else {
+                        filteredProducts.chunked(2).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                rowItems.forEach { product ->
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        ProductGridCard(
+                                            product = product,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            onAddToCart = { selectedProductForCustomization = product }
+                                        )
+                                    }
+                                }
+                                if (rowItems.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
                         }
                     }
