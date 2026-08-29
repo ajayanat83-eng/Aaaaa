@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   build-and-release:
@@ -55,9 +56,10 @@ jobs:
           echo "Java 17+ environment verified successfully."
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
+          cache-disabled: false
 
       - name: Grant execute permission for Gradle wrapper
         run: |
@@ -164,7 +166,8 @@ jobs:
         id: publish_release
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN || github.token }}
         run: |
           echo "=== Validating GitHub CLI ==="
           gh --version
@@ -196,12 +199,13 @@ jobs:
             --title "$RELEASE_TITLE" \
             --notes "$RELEASE_BODY" \
             --target "${{ github.sha }}" \
-            --latest
+            --latest || true
 
       - name: Report APK download result
         if: always()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN || github.token }}
         run: |
           echo "=== Build & Release Summary ==="
           RELEASE_TAG="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
