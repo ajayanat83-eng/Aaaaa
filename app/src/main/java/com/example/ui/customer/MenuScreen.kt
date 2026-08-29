@@ -10,12 +10,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,15 +44,20 @@ fun MenuScreen(
     val products by repository.products.collectAsState()
     val categories by repository.categories.collectAsState()
     val cartItems by repository.cartItems.collectAsState()
+    val favoriteProductIds by repository.favoriteProductIds.collectAsState()
     val isFirestoreLoading by FirestoreMenuRepository.instance.isLoading.collectAsState()
 
     var selectedCategoryId by remember { mutableStateOf<String?>(initialCategoryId) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedProductForCustomization by remember { mutableStateOf<Product?>(null) }
 
-    val filteredProducts = remember(selectedCategoryId, searchQuery, products) {
+    val filteredProducts = remember(selectedCategoryId, searchQuery, favoriteProductIds, products) {
         products.filter { product ->
-            val matchesCategory = selectedCategoryId == null || product.categoryId == selectedCategoryId
+            val matchesCategory = when (selectedCategoryId) {
+                null -> true
+                "filter_favorites" -> favoriteProductIds.contains(product.productId)
+                else -> product.categoryId == selectedCategoryId
+            }
             val matchesSearch = searchQuery.isBlank() ||
                     product.name.contains(searchQuery, ignoreCase = true) ||
                     product.description.contains(searchQuery, ignoreCase = true)
@@ -151,6 +158,28 @@ fun MenuScreen(
                                 )
                             )
                         }
+                        item {
+                            val isFavSelected = selectedCategoryId == "filter_favorites"
+                            FilterChip(
+                                selected = isFavSelected,
+                                onClick = {
+                                    selectedCategoryId = if (isFavSelected) null else "filter_favorites"
+                                },
+                                label = {
+                                    Text(
+                                        text = if (favoriteProductIds.isNotEmpty()) "❤️ Favorites (${favoriteProductIds.size})" else "🤍 Favorites",
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isFavSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFFF4D4F),
+                                    selectedLabelColor = Color.White,
+                                    containerColor = DarkSurfaceVariant,
+                                    labelColor = if (favoriteProductIds.isNotEmpty()) Color(0xFFFF7875) else TextSecondary
+                                )
+                            )
+                        }
                         items(categories) { category ->
                             val isSelected = selectedCategoryId == category.id
                             FilterChip(
@@ -204,6 +233,8 @@ fun MenuScreen(
                 items(filteredProducts) { product ->
                     MenuProductListItem(
                         product = product,
+                        isFavorite = favoriteProductIds.contains(product.productId),
+                        onToggleFavorite = { repository.toggleFavorite(product.productId) },
                         onCustomize = { selectedProductForCustomization = product }
                     )
                 }
@@ -216,10 +247,20 @@ fun MenuScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("🔍", fontSize = 36.sp)
+                                Text(if (selectedCategoryId == "filter_favorites") "🤍" else "🔍", fontSize = 36.sp)
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Text("No items found", color = TextSecondary, fontSize = 14.sp)
-                                Text("Try searching for something else", color = TextMuted, fontSize = 12.sp)
+                                Text(
+                                    text = if (selectedCategoryId == "filter_favorites") "No Favorites Saved Yet" else "No items found",
+                                    color = TextSecondary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (selectedCategoryId == "filter_favorites") "Tap the heart icon on any dish to bookmark it for fast ordering" else "Try searching for something else",
+                                    color = TextMuted,
+                                    fontSize = 12.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
                             }
                         }
                     }
@@ -232,6 +273,8 @@ fun MenuScreen(
 @Composable
 fun MenuProductListItem(
     product: Product,
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {},
     onCustomize: () -> Unit
 ) {
     Box(
@@ -301,22 +344,43 @@ fun MenuProductListItem(
                 }
             }
 
-            Button(
-                onClick = onCustomize,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (product.isAvailable) WaffleOrange else DarkSurfaceElevated,
-                    contentColor = if (product.isAvailable) Color.Black else TextMuted
-                ),
-                enabled = product.isAvailable,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                modifier = Modifier.height(34.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (product.isAvailable) "+ ADD" else "SOLD OUT",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black
-                )
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(DarkSurfaceElevated)
+                        .testTag("favorite_menu_button_${product.productId}")
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) Color(0xFFFF4D4F) else TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Button(
+                    onClick = onCustomize,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (product.isAvailable) WaffleOrange else DarkSurfaceElevated,
+                        contentColor = if (product.isAvailable) Color.Black else TextMuted
+                    ),
+                    enabled = product.isAvailable,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Text(
+                        text = if (product.isAvailable) "+ ADD" else "SOLD OUT",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
             }
         }
     }

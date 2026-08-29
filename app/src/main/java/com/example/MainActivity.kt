@@ -52,6 +52,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         TjwCafeApplication.initFirebase(applicationContext)
         val repository = CafeRepository.instance
+        repository.initLocalDatabase(applicationContext)
         com.example.data.FirestoreMenuRepository.instance.initLocalDatabase(applicationContext)
 
         setContent {

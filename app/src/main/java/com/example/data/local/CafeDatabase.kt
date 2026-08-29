@@ -8,15 +8,17 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [
         CategoryEntity::class,
-        ProductEntity::class
+        ProductEntity::class,
+        FavoriteEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class CafeDatabase : RoomDatabase() {
 
     abstract fun categoryDao(): CategoryDao
     abstract fun productDao(): ProductDao
+    abstract fun favoriteDao(): FavoriteDao
 
     companion object {
         @Volatile

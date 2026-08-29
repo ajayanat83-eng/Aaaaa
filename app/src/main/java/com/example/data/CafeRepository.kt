@@ -1,5 +1,9 @@
 package com.example.data
 
+import android.content.Context
+import android.util.Log
+import com.example.data.local.CafeDatabase
+import com.example.data.local.FavoriteEntity
 import com.example.model.*
 import com.example.service.PrinterService
 import kotlinx.coroutines.CoroutineScope
@@ -7,16 +11,21 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.UUID
 
 class CafeRepository private constructor() {
 
     private val scope = CoroutineScope(Dispatchers.Default)
+    private var localDatabase: CafeDatabase? = null
 
     // Reactive State Flows
     private val _products = MutableStateFlow<List<Product>>(DefaultMenuData.getInitialProducts())
     val products: StateFlow<List<Product>> = _products.asStateFlow()
+
+    private val _favoriteProductIds = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteProductIds: StateFlow<Set<String>> = _favoriteProductIds.asStateFlow()
 
     private val _categories = MutableStateFlow<List<Category>>(DefaultMenuData.categories)
     val categories: StateFlow<List<Category>> = _categories.asStateFlow()
@@ -153,6 +162,50 @@ class CafeRepository private constructor() {
         }
 
         logAudit("System", "Initial Menu, Tables, and Seed Orders initialized.")
+    }
+
+    fun initLocalDatabase(context: Context) {
+        if (localDatabase == null) {
+            val db = CafeDatabase.getDatabase(context)
+            localDatabase = db
+            scope.launch {
+                try {
+                    db.favoriteDao().getAllFavoriteProductIdsFlow().collectLatest { ids ->
+                        _favoriteProductIds.value = ids.toSet()
+                    }
+                } catch (e: Exception) {
+                    Log.e("CafeRepository", "Error collecting favorites from Room DB: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // ==================== FAVORITES OPERATIONS (ROOM DATABASE) ====================
+
+    fun toggleFavorite(productId: String) {
+        val current = _favoriteProductIds.value
+        val isFav = current.contains(productId)
+        val updated = if (isFav) current - productId else current + productId
+        _favoriteProductIds.value = updated
+
+        val db = localDatabase
+        if (db != null) {
+            scope.launch {
+                try {
+                    if (isFav) {
+                        db.favoriteDao().removeFavorite(productId)
+                    } else {
+                        db.favoriteDao().addFavorite(FavoriteEntity(productId = productId))
+                    }
+                } catch (e: Exception) {
+                    Log.e("CafeRepository", "Error updating favorite in Room DB: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun isFavorite(productId: String): Boolean {
+        return _favoriteProductIds.value.contains(productId)
     }
 
     // ==================== CART OPERATIONS ====================

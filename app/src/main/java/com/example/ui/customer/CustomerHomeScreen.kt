@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,20 +53,27 @@ fun CustomerHomeScreen(
     val cartItems by repository.cartItems.collectAsState()
     val tables by repository.tables.collectAsState()
     val customerProfile by repository.customerProfile.collectAsState()
+    val favoriteProductIds by repository.favoriteProductIds.collectAsState()
     val isFirestoreLoading by FirestoreMenuRepository.instance.isLoading.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
+    var showFavoritesOnly by remember { mutableStateOf(false) }
     var selectedProductForCustomization by remember { mutableStateOf<Product?>(null) }
     var showQrDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
 
-    val filteredProducts = remember(searchQuery, products) {
-        if (searchQuery.isBlank()) products
-        else products.filter {
+    val filteredProducts = remember(searchQuery, showFavoritesOnly, favoriteProductIds, products) {
+        val base = if (showFavoritesOnly) products.filter { favoriteProductIds.contains(it.productId) } else products
+        if (searchQuery.isBlank()) base
+        else base.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
                     it.description.contains(searchQuery, ignoreCase = true) ||
                     it.badge?.contains(searchQuery, ignoreCase = true) == true
         }
+    }
+
+    val favoriteProductsList = remember(favoriteProductIds, products) {
+        products.filter { favoriteProductIds.contains(it.productId) }
     }
 
     val superSaverCombos = remember(products) {
@@ -230,34 +238,75 @@ fun CustomerHomeScreen(
                 }
             }
 
-            // ==================== 2. SEARCH BAR ====================
+            // ==================== 2. SEARCH BAR & QUICK FILTERS ====================
             item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search waffles, momos, pizzas, shakes, coolers...", color = TextMuted, fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = GoldenAmber) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
-                            }
-                        }
-                    },
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedBorderColor = WaffleOrange,
-                        unfocusedBorderColor = CardBorder,
-                        focusedContainerColor = DarkSurface,
-                        unfocusedContainerColor = DarkSurface
-                    ),
-                    singleLine = true
-                )
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search waffles, momos, pizzas, shakes, coolers...", color = TextMuted, fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = GoldenAmber) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = WaffleOrange,
+                            unfocusedBorderColor = CardBorder,
+                            focusedContainerColor = DarkSurface,
+                            unfocusedContainerColor = DarkSurface
+                        ),
+                        singleLine = true
+                    )
+
+                    // Quick Filter chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = !showFavoritesOnly,
+                            onClick = { showFavoritesOnly = false },
+                            label = { Text("🍽️ All Items", fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = WaffleOrange,
+                                selectedLabelColor = Color.Black,
+                                containerColor = DarkSurfaceVariant,
+                                labelColor = TextSecondary
+                            )
+                        )
+                        FilterChip(
+                            selected = showFavoritesOnly,
+                            onClick = { showFavoritesOnly = !showFavoritesOnly },
+                            label = {
+                                Text(
+                                    text = if (favoriteProductIds.isNotEmpty()) "❤️ Favorites (${favoriteProductIds.size})" else "🤍 Favorites",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (showFavoritesOnly) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFFF4D4F),
+                                selectedLabelColor = Color.White,
+                                containerColor = DarkSurfaceVariant,
+                                labelColor = if (favoriteProductIds.isNotEmpty()) Color(0xFFFF7875) else TextSecondary
+                            )
+                        )
+                    }
+                }
             }
 
             // ==================== 3. HERO PROMOTIONAL BANNER ====================
@@ -445,7 +494,7 @@ fun CustomerHomeScreen(
             }
 
             // ==================== 6. SUPER SAVER COMBOS ====================
-            if (superSaverCombos.isNotEmpty() && searchQuery.isBlank()) {
+            if (superSaverCombos.isNotEmpty() && searchQuery.isBlank() && !showFavoritesOnly) {
                 item {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -478,6 +527,8 @@ fun CustomerHomeScreen(
                             items(superSaverCombos) { combo ->
                                 ComboProductCard(
                                     product = combo,
+                                    isFavorite = favoriteProductIds.contains(combo.productId),
+                                    onToggleFavorite = { repository.toggleFavorite(combo.productId) },
                                     onAddToCart = { selectedProductForCustomization = combo }
                                 )
                             }
@@ -487,7 +538,7 @@ fun CustomerHomeScreen(
             }
 
             // ==================== 7. BEST SELLERS ====================
-            if (bestSellers.isNotEmpty() && searchQuery.isBlank()) {
+            if (bestSellers.isNotEmpty() && searchQuery.isBlank() && !showFavoritesOnly) {
                 item {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -507,6 +558,8 @@ fun CustomerHomeScreen(
                             items(bestSellers) { product ->
                                 ProductGridCard(
                                     product = product,
+                                    isFavorite = favoriteProductIds.contains(product.productId),
+                                    onToggleFavorite = { repository.toggleFavorite(product.productId) },
                                     onAddToCart = { selectedProductForCustomization = product }
                                 )
                             }
@@ -515,7 +568,7 @@ fun CustomerHomeScreen(
                 }
             }
 
-            // ==================== 8. POPULAR ITEMS & SEARCH RESULTS ====================
+            // ==================== 8. POPULAR ITEMS, FAVORITES & SEARCH RESULTS ====================
             item {
                 Column(
                     modifier = Modifier
@@ -524,13 +577,41 @@ fun CustomerHomeScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = if (searchQuery.isNotBlank()) "Search Results (${filteredProducts.size})" else "🌟 Popular Items",
+                        text = when {
+                            showFavoritesOnly -> "❤️ Saved Favorites (${filteredProducts.size})"
+                            searchQuery.isNotBlank() -> "Search Results (${filteredProducts.size})"
+                            else -> "🌟 Popular Items"
+                        },
                         color = TextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
 
-                    if (products.isEmpty() || isFirestoreLoading) {
+                    if (showFavoritesOnly && filteredProducts.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(DarkSurface)
+                                .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+                                .padding(28.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("🤍", fontSize = 36.sp)
+                                Text("No Favorites Saved Yet", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(
+                                    "Tap the heart icon on any menu item to save your favorite dishes here for quick 1-tap ordering!",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    } else if (products.isEmpty() || isFirestoreLoading) {
                         repeat(3) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -550,6 +631,8 @@ fun CustomerHomeScreen(
                                     Box(modifier = Modifier.weight(1f)) {
                                         ProductGridCard(
                                             product = product,
+                                            isFavorite = favoriteProductIds.contains(product.productId),
+                                            onToggleFavorite = { repository.toggleFavorite(product.productId) },
                                             modifier = Modifier.fillMaxWidth(),
                                             onAddToCart = { selectedProductForCustomization = product }
                                         )
@@ -637,6 +720,8 @@ fun CategoryCard(
 @Composable
 fun ComboProductCard(
     product: Product,
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {},
     onAddToCart: () -> Unit
 ) {
     Box(
@@ -654,8 +739,28 @@ fun ComboProductCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(product.imageEmoji, fontSize = 28.sp)
-                if (product.badge != null) {
-                    ProductBadgeTag(badgeText = product.badge)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (product.badge != null) {
+                        ProductBadgeTag(badgeText = product.badge)
+                    }
+                    IconButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(DarkSurfaceElevated)
+                            .testTag("favorite_button_${product.productId}")
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (isFavorite) Color(0xFFFF4D4F) else TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
             Text(
@@ -697,6 +802,8 @@ fun ComboProductCard(
 @Composable
 fun ProductGridCard(
     product: Product,
+    isFavorite: Boolean = false,
+    onToggleFavorite: () -> Unit = {},
     modifier: Modifier = Modifier,
     onAddToCart: () -> Unit
 ) {
@@ -709,7 +816,7 @@ fun ProductGridCard(
             .padding(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            // Visual header with Veg dot & badge
+            // Visual header with Veg dot, favorite & badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -724,10 +831,25 @@ fun ProductGridCard(
                 ) {
                     Text(product.imageEmoji, fontSize = 22.sp)
                 }
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(
+                        onClick = onToggleFavorite,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(DarkSurfaceElevated)
+                            .testTag("favorite_button_${product.productId}")
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (isFavorite) Color(0xFFFF4D4F) else TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                     PureVegBadge(showText = false)
                     if (product.badge != null) {
                         ProductBadgeTag(badgeText = product.badge)
